@@ -5,7 +5,7 @@ body, h1, h2, p, div, span, li, ul {
 }
 
 body {
-    background-color: #333340;
+    background-color: #1b191d;
     color: white;
     font-family: Montserrat, sans-serif !important;
     font-size: 12px;
@@ -67,6 +67,12 @@ h1 {
     text-align: center;
 }
 
+.Scenarios {
+    position: absolute;
+    top: 50vh;
+    right: 50px;
+}
+
 
 @media only screen and (max-width: 999px) {
     .AttackerCoords {
@@ -74,6 +80,7 @@ h1 {
         top:260px;
         left: 50px;
         width: 400px;
+        z-index: 0;
     }
 
     .Info {
@@ -84,7 +91,7 @@ h1 {
     
     .Search {
         position: absolute;
-        top: 100px;
+        top: 150px;
         left: 10px;
         width: 120px;
     }
@@ -113,6 +120,7 @@ h1 {
         top: 430px;
         left: 50px;
         width: 350px;
+        z-index: 0;
     }
 
     .AttackerPower {
@@ -120,13 +128,15 @@ h1 {
         top: 530px;
         left: 50px;
         width: 400px;
+        z-index: 0;
     }
 
     .DefenderCoords {
         position:absolute;
-        top: 620px;
+        top: 690px;
         left: 50px;
         width: 400px;
+        z-index: 0;
     }
 
 
@@ -134,7 +144,7 @@ h1 {
     .Jambox {
         position: absolute;
         top: 100px;
-        right: 100px;
+        right: 50px;
     }
 
 
@@ -147,7 +157,7 @@ h1 {
     .SimulationSettings
      {
         position: absolute;
-        top: 170px;
+        top: 200px;
         left: 50px;
         width: auto;
     }

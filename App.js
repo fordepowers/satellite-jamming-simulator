@@ -6,24 +6,24 @@ import { Engine } from './engine';
 import InfoBox from './InfoBox';
 import Search from './Search/Search';
 import CoordinateInput from 'react-coordinate-input';
-import { Badge } from 'react-bootstrap';
+import { Badge, Button, Stack } from 'react-bootstrap';
 import Form from 'react-bootstrap/Form';
 import DateTimeRangePicker from '@wojtekmaj/react-datetimerange-picker';
 import dayjs from 'dayjs';
 var utc = require('dayjs/plugin/utc');
 // Bypass CORS
 function getCorsFreeUrl(url) {
-    return 'https://api.allorigins.win/raw?url=' + url;    
+    return 'https://api.allorigins.win/raw?url=' + url;
 }
 
 dayjs.extend(utc);
 const now = new Date();
 const fortnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14);
 const endDefault = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(),0);
+const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0);
 
 
-class App extends Component {    
+class App extends Component {
 
     initial_state = {
         pause_timer: false,
@@ -35,7 +35,8 @@ class App extends Component {
         attacker_eirp: 0,
         defender_eirp: 30,
         selected_range: [todayMidnight, endDefault],
-        step_size: 10
+        step_size: 10,
+        scenario: []
     }
 
     state = this.initial_state;
@@ -62,40 +63,40 @@ class App extends Component {
     }
 
     handleTimer = () => {
-        if(this.state?.pause_timer) return;
-        if(this.state.current_date == null){
+        if (this.state?.pause_timer) return;
+        if (this.state.current_date == null) {
             this.setState({
                 current_date: this.state.selected_range[0]
             })
         }
-        else if(this.state.current_date < this.state.selected_range[1]){
+        else if (this.state.current_date < this.state.selected_range[1]) {
             var updatedDate = this.state.current_date
-            updatedDate.setTime(updatedDate.getTime()+this.state.step_size*1000)
+            updatedDate.setTime(updatedDate.getTime() + this.state.step_size * 1000)
             this.setState({
-                current_date : updatedDate
+                current_date: updatedDate
             })
             this.engine.updateAllPositions(this.state.current_date);
         }
-        else{
+        else {
             this.setState({
                 current_date: this.state.selected_range[0]
             })
         }
     }
 
-    handleSearchResultClick = (station, date_range=null) => {
+    handleSearchResultClick = (station, date_range = null) => {
         if (!station) return;
         this.setState({
             pause_timer: true,
         });
-        if (this.state.target_station != null){
+        if (this.state.target_station != null) {
             this.engine.removeOrbit(this.state.target_station);
             this.engine.removeSatellite(this.state.target_station);
         }
         let startDay = dayjs(this.state.selected_range[0])
         let endDay = dayjs(this.state.selected_range[1])
 
-        if (date_range !== null){
+        if (date_range !== null) {
             startDay = dayjs(date_range[0])
             endDay = dayjs(date_range[1])
         }
@@ -114,8 +115,8 @@ class App extends Component {
     }
 
     updateAttackerCoords = (value, { unmaskedValue, dd, dms }) => {
-        if(!dd) return;
-        if (this.state.attacker_station){
+        if (!dd) return;
+        if (this.state.attacker_station) {
             this.engine.removeObserver(this.state.attacker_station.mesh);
         }
 
@@ -124,9 +125,35 @@ class App extends Component {
         });
     }
 
+    updateAttackerHeight = (event) => {
+        if (!parseInt(event.target.value)) return;
+        if (this.state.attacker_station) {
+            this.engine.removeObserver(this.state.attacker_station.mesh);
+        }
+        let lat = this.state.attacker_station.gdPosition.latitude * (180 / Math.PI)
+        let long = this.state.attacker_station.gdPosition.longitude * (180 / Math.PI)
+
+        this.setState({
+            attacker_station: this.engine.addObserver(lat, long, parseInt(event.target.value), 'attack')
+        });
+    }
+
+    updateDefenderHeight = (event) => {
+        if (!parseInt(event.target.value)) return;
+        if (this.state.defender_station) {
+            this.engine.removeObserver(this.state.defender_station.mesh);
+        }
+        let lat = this.state.defender_station.gdPosition.latitude * (180 / Math.PI)
+        let long = this.state.defender_station.gdPosition.longitude * (180 / Math.PI)
+
+        this.setState({
+            defender_station: this.engine.addObserver(lat, long, parseInt(event.target.value), 'ground')
+        });
+    }
+
     updateDefenderCoords = (value, { unmaskedValue, dd, dms }) => {
-        if(!dd) return;
-        if (this.state.defender_station){
+        if (!dd) return;
+        if (this.state.defender_station) {
             this.engine.removeObserver(this.state.defender_station.mesh);
         }
         this.setState({
@@ -136,6 +163,31 @@ class App extends Component {
 
     attackerRange = () => this.getStationRange(this.state.attacker_station, this.state.target_station, this.state.current_date)
     defenderRange = () => this.getStationRange(this.state.defender_station, this.state.target_station, this.state.current_date)
+
+    calculateDistance = () => {
+        if (this.state.attacker_station === null)
+            return;
+        let lat1 = this.state.attacker_station.gdPosition.latitude
+        let lon1 = this.state.attacker_station.gdPosition.longitude
+        let height1 = this.state.attacker_station.gdPosition.height
+
+        let lat2 = this.state.defender_station.gdPosition.latitude
+        let lon2 = this.state.defender_station.gdPosition.longitude
+        let height2 = this.state.defender_station.gdPosition.height
+
+        const R = 6371; // Radius of the Earth in kilometers
+
+        const dLat = lat2 - lat1;
+        const dLon = lon2 - lon1;
+
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        const distance2D = R * c; // Distance in kilometers
+        const heightDifference = (height2 - height1) // already in km
+
+        return Math.sqrt(distance2D ** 2 + heightDifference ** 2);
+    }
 
     updateAttackerEirp = (event) => {
         this.setState({
@@ -158,7 +210,7 @@ class App extends Component {
             selected_range: value,
             current_date: value[0]
         })
-        if(this.state.target_station != null){
+        if (this.state.target_station != null) {
             this.handleSearchResultClick(this.state.target_station, value);
         }
 
@@ -170,21 +222,21 @@ class App extends Component {
         })
     }
 
-    attackerPowerAtReceiver = () => this.attackerRange() > 0 
+    attackerPowerAtReceiver = () => this.attackerRange() > 0
         ? this.engine?.computePowerRx(this.state.attacker_eirp, this.attackerRange(), 10000000)
         : -200000000
 
-    defenderPowerAtReceiver = () => this.defenderRange() > 0 
+    defenderPowerAtReceiver = () => this.defenderRange() > 0
         ? this.engine?.computePowerRx(this.state.defender_eirp, this.defenderRange(), 10000000)
         : -200000000
 
     getStationRange = (transmitterStation, targetStation, currentTime) => {
-        if(transmitterStation == null || targetStation == null){
+        if (transmitterStation == null || targetStation == null) {
             return -1
         }
-        else{
-            var {is_visible, range} = this.engine.getAzimuthAndRange(transmitterStation, targetStation, currentTime);
-            if(!is_visible){
+        else {
+            var { is_visible, range } = this.engine.getAzimuthAndRange(transmitterStation, targetStation, currentTime);
+            if (!is_visible) {
                 return -1
             }
             else {
@@ -194,58 +246,91 @@ class App extends Component {
     }
 
     dbmToWats = (dbmLevel) => {
-        return Math.pow(10, ((dbmLevel-30)/10))
+        return Math.pow(10, ((dbmLevel - 30) / 10))
     }
 
-    getSinrFromDbm = (signal, interference, noise=-90) => {
-        let powerSignal = Math.pow(10, ((signal-30)/10));
-        let powerInterference = Math.pow(10, ((interference-30)/10));
-        let powerNoise = Math.pow(10, ((noise-30)/10));
-        return 10*Math.log10(powerSignal / (powerInterference + powerNoise))
+    getSinrFromDbm = (signal, interference, noise = -90) => {
+        let powerSignal = Math.pow(10, ((signal - 30) / 10));
+        let powerInterference = Math.pow(10, ((interference - 30) / 10));
+        let powerNoise = Math.pow(10, ((noise - 30) / 10));
+        return 10 * Math.log10(powerSignal / (powerInterference + powerNoise))
     }
+
 
     render() {
-
         let jamBox;
-        if (this.defenderRange() < 0){
+        if (this.defenderRange() < 0) {
             jamBox = <h1 className="bg-secondary text-white">Satellite Out of Range</h1>
         }
-        else if(this.defenderPowerAtReceiver() > this.attackerPowerAtReceiver()){
-            if(this.dbmToWats(this.defenderPowerAtReceiver())*.5 < this.dbmToWats(this.attackerPowerAtReceiver())){
+        else if (this.defenderPowerAtReceiver() > this.attackerPowerAtReceiver()) {
+            if (this.dbmToWats(this.defenderPowerAtReceiver()) * .5 < this.dbmToWats(this.attackerPowerAtReceiver())) {
                 jamBox = <h1 className="bg-warning text-white">Signal Quality Degraded</h1>
             }
-            else{
-                jamBox = <h1 className="bg-success text-white">Communications Normal!</h1>
+            else {
+                jamBox = <h1 className="bg-success text-white">Communications Normal</h1>
             }
         }
-        else if(this.attackerPowerAtReceiver() > this.defenderPowerAtReceiver() && this.attackerRange() > 0){
-            jamBox = <h1 className="bg-danger text-white">Signal Jammed!</h1>
+        else if (this.attackerPowerAtReceiver() > this.defenderPowerAtReceiver() && this.attackerRange() > 0) {
+            jamBox = <h1 className="bg-danger text-white">Signal Jammed</h1>
         }
         return (
             <div>
                 <br></br>
-               <InfoBox current_date={dayjs(this.state.current_date?.toISOString()).local().format('YYYY-MM-DD HH:mm:ss')} satellite_name={this.state.target_station ? this.state.target_station.name : "No Target"}/>
-               <div className="SimulationSettings">
-                    <div className='h3'> Simulation Settings </div>
-                    <h6>Target Satellite</h6>
-                    <Search stations={this.state.stations} onResultClick={this.handleSearchResultClick}/>
-                    <h6>Simulation Period</h6>
-                    <DateTimeRangePicker className="DateTimeRange" clearIcon={null} disableClock={true} minDate={todayMidnight} maxDate={fortnight} value={this.state.selected_range} onChange={this.updateSimulationPeriod}/>
+                <InfoBox current_date={dayjs(this.state.current_date?.toISOString()).local().format('YYYY-MM-DD HH:mm:ss')} satellite_name={this.state.target_station ? this.state.target_station.name : "No Target"} />
+                <div className="SimulationSettings">
+                    <Search stations={this.state.stations} onResultClick={this.handleSearchResultClick} />
+                    <h6 style={{ paddingTop: '0.5rem' }}>Simulation Period</h6>
+                    <DateTimeRangePicker className="DateTimeRange" clearIcon={null} disableClock={true} minDate={todayMidnight} maxDate={fortnight} value={this.state.selected_range} onChange={this.updateSimulationPeriod} />
                     <br></br><br></br>
                     <h6>Simulation Step Size: {this.state.step_size}s</h6>
-                    <Form.Range min="1" max="1000" defaultValue="10" onChange={this.updateStepSize}/>
-               </div>
-               <div className="JamBox">
+                    <Form.Range min="1" max="1000" defaultValue="10" onChange={this.updateStepSize} />
+                </div>
+                <div className="JamBox">
                     {jamBox}
-                    <p><span className="h5"><b>SINR</b> @ Target: {this.getSinrFromDbm(this.defenderPowerAtReceiver(), this.attackerPowerAtReceiver()).toFixed(2)} dB</span></p>
-                    <p><span className="h5"><b>SINR (Clear)</b> @ Target: {this.getSinrFromDbm(this.defenderPowerAtReceiver(), -2000000000).toFixed(2)} dB</span></p>
-               </div>
-               <div>
+                    {this.defenderRange() > 0 && <p style={{ marginTop: '1rem' }}><span className="h5"><b>SINR</b> @ Target: {this.getSinrFromDbm(this.defenderPowerAtReceiver(), this.attackerPowerAtReceiver()).toFixed(2)} dB</span></p>}
+                    {this.defenderRange() > 0 && <p><span className="h5"><b>SINR (Clear)</b> @ Target: {this.getSinrFromDbm(this.defenderPowerAtReceiver(), -2000000000).toFixed(2)} dB</span></p>}
+                    <Form.Label style={{ paddingTop: '1rem' }} className="h6">Distance Between Attacker & Defender: <b>{Math.round(this.calculateDistance())}km</b></Form.Label>
+                </div>
+                <Stack className='Scenarios'>
+                    <span className='h4'>Scenarios</span>
+                    <Button
+                        style={{ marginTop: '1rem' }}
+                        onClick={() => {
+                            this.updateDefenderCoords(null, { unmaskedValue: null, dd: [50.434106216709786, 30.469658249951433] })
+                            this.updateAttackerCoords(null, { unmaskedValue: null, dd: [50.59145234281993, 36.521682844828646] })
+                            this.updateAttackerHeight({ target: { value: 0.8 } })
+                            this.setState({ scenario: [<h5>Ukraine/Russia LEO</h5>] })
+                            this.handleSearchResultClick(this.state.stations.filter((station) => station.name === "STARLINK-1010")[0])
+                            this.setState({ current_date: new Date("11 September 2024 8:18 UTC"), step_size: 1 })
+
+                        }}
+                    >
+                        LEO Jamming</Button>
+                    <Button style={{ marginTop: '1rem' }}
+                        onClick={() => {
+                            this.updateDefenderCoords(null, { unmaskedValue: null, dd: [35.915912511858245, 126.62820339201545] })
+                            this.updateAttackerCoords(null, { unmaskedValue: null, dd: [38.329554505077326, 127.24409880869712] })
+                            this.setState({ scenario: [<h5>North Korea/South Korea MEO</h5>] })
+                            this.handleSearchResultClick(this.state.stations.filter((station) => station.name === "NOAA 20 (JPSS-1)")[0])
+                            this.setState({ current_date: new Date("11 September 2024 17:04 UTC"), step_size: 1 })
+                        }}
+
+                    >MEO Jamming</Button>
+                    <Button style={{ marginTop: '1rem' }}
+                        onClick={() => {
+                            this.updateDefenderCoords(null, { unmaskedValue: null, dd: [30.424796795293982, 74.80123812190111] })
+                            this.updateAttackerCoords(null, { unmaskedValue: null, dd: [29.76055677517488, 94.12076991948759] })
+                            this.setState({ scenario: [<h5>China/India GEO</h5>] })
+                            this.handleSearchResultClick(this.state.stations.filter((station) => station.name === "GSAT-8")[0])
+                        }}
+                    >GEO Jamming</Button>
+                </Stack>
+                <div>
                     <div className="AttackerCoords">
-                        <span className='h6'><span className='h3 text-danger'> Attacker </span>{this.attackerRange() > 0
+                        <span className='h6'><span className='h3 text-danger'><b> Attacker </b> </span>{this.attackerRange() > 0
                             ? <Badge bg="success">Satellite Visible</Badge>
                             : <Badge bg="secondary">Satellite Not Visible</Badge>
-                            }</span>
+                        }</span>
                         <br></br>
                         <label className="label h6">Jammer Coordinates&nbsp;</label>
                         <CoordinateInput className='CoordinateInput' value='30° 00′ 00″ N 090° 00′ 00″ W' placeholder='30° 00′ 00″ N 090° 00′ 00″ W' placeholderChar={null}
@@ -253,24 +338,30 @@ class App extends Component {
                         />
                     </div>
                     <div className="AttackerPower">
-                        <Form.Label className="h6">Attacker EIRP: {this.state.attacker_eirp} dBm</Form.Label>
-                        <Form.Range min="-50" max="200" defaultValue="0" onChange={this.updateAttackerEirp}/>
+                        <Form.Label className="h6">EIRP: <b>{this.state.attacker_eirp} dBm</b></Form.Label>
+                        <Form.Range min="-50" max="200" defaultValue="0" onChange={this.updateAttackerEirp} />
+                        <Form.Label style={{ paddingTop: '0.5rem' }} className="h6">Height: <b>{this.state.attacker_station?.gdPosition?.height}km</b></Form.Label>
+                        <Form.Range min="-50" max="2000" defaultValue="0" onChange={this.updateAttackerHeight} />
+                        {this.attackerRange() > 0 && <Form.Label style={{ paddingTop: '0.5rem' }} className="h6">Distance to sat: <b>{Math.round(this.attackerRange())}km</b></Form.Label>}
                     </div>
 
                 </div>
                 <div className="DefenderCoords">
-                    <span className='h6'><span className='h3 text-info'> Defender </span>{this.attackerRange() > 0
-                                ? <Badge bg="success">Satellite Visible</Badge>
-                                : <Badge bg="secondary">Satellite Not Visible</Badge>
-                                }</span>
-                            <br></br>
-                    <label className="label h6 ">Ground Station Coordinates&nbsp;</label>
+                    <span className='h6'><span className='h3 text-info'><b> Defender </b> </span>{this.attackerRange() > 0
+                        ? <Badge bg="success">Satellite Visible</Badge>
+                        : <Badge bg="secondary">Satellite Not Visible</Badge>
+                    }</span>
+                    <br></br>
+                    <label className="label h6 ">Station Coordinates&nbsp;</label>
                     <CoordinateInput className='CoordinateInput' value='28° 34′ 24″ N 080° 39′ 03″ W' placeholder='28° 34′ 24″ N 080° 39′ 03″ W' placeholderChar={null}
                         onChange={this.updateDefenderCoords}
                     />
-                    <div className="DefenderPower">
-                        <Form.Label className="h6">Defender EIRP: {this.state.defender_eirp} dBm</Form.Label>
-                        <Form.Range min="-50" max="200" defaultValue="30" onChange={this.updateDefenderEirp}/>
+                    <div className="DefenderPower" style={{ paddingTop: '0.5rem' }}>
+                        <Form.Label className="h6">EIRP:  <b>{this.state.defender_eirp} dBm </b></Form.Label>
+                        <Form.Range min="-50" max="200" defaultValue="30" onChange={this.updateDefenderEirp} />
+                        <Form.Label style={{ paddingTop: '0.5rem' }} className="h6">Height: <b>{this.state.defender_station?.gdPosition?.height}km</b></Form.Label>
+                        <Form.Range min="-50" max="2000" defaultValue="0" onChange={this.updateDefenderHeight} />
+                        {this.defenderRange() > 0 && <Form.Label style={{ paddingTop: '0.5rem' }} className="h6">Distance to sat: <b>{Math.round(this.defenderRange())}km</b></Form.Label>}
                     </div>
                 </div>
                 <div ref={c => this.el = c} style={{ width: '100%', height: '100%' }} />
@@ -279,16 +370,16 @@ class App extends Component {
     }
 
     addCelestrakSets = () => {
-        this.engine.loadLteFileStations(getCorsFreeUrl('http://www.celestrak.com/NORAD/elements/active.txt'), 0xffffff, {render: false})
+        this.engine.loadLteFileStations(getCorsFreeUrl('https://celestrak.com/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'), 0xffffff, { render: false })
             .then(stations => {
-                this.setState({stations});
+                this.setState({ stations });
                 var defaultTarget = stations.find(obj => {
                     return obj.name?.includes("STARLINK");
                 });
-                if(defaultTarget != null){
+                if (defaultTarget != null) {
                     this.handleSearchResultClick(defaultTarget);
                 }
-                
+
                 //this.engine.addSatellite(stations[0], 0xFF00FF, 50)
                 //this.processQuery(stations);
             });

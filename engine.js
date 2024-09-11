@@ -5,6 +5,7 @@ import circle from './assets/circle.png';
 import { parseTleFile as parseTleFile, getPositionFromTle, getPositionFromGroundCoords } from "./tle";
 import { earthRadius } from "satellite.js/lib/constants";
 import * as satellite from 'satellite.js/lib/index';
+import satData from './sat-data.tle';
 
 
 const SatelliteSize = 50;
@@ -14,7 +15,7 @@ const lightSpeed = 299792458
 let TargetDate = new Date();
 
 const defaultOptions = {
-    backgroundColor: 0x333340,
+    backgroundColor: 0x1b191d,
     defaultSatelliteColor: 0xff0000,
     onStationClicked: null
 }
@@ -148,7 +149,7 @@ export class Engine {
     loadLteFileStations = (url, color, stationOptions) => {
         const options = { ...defaultStationOptions, ...stationOptions };
 
-        return fetch(url).then(res => {
+        return fetch(satData).then(res => {
             if (res.ok) {
                 return res.text().then(text => {
                     return this._addTleFileStations(text, color, options);
